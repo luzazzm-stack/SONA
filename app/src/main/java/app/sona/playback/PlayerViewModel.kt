@@ -1,6 +1,7 @@
 package app.sona.playback
 
 import android.app.Application
+import android.net.Uri
 import android.content.ComponentName
 import androidx.compose.runtime.Immutable
 import androidx.core.content.ContextCompat
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.concurrent.Future
 
 @Immutable
 data class PlayerUi(
@@ -36,7 +38,10 @@ data class PlayerUi(
 class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     private var controller: MediaController? = null
+    private var controllerFuture: Future<MediaController>? = null
+    private var released = false
     private var queue: List<Song> = emptyList()
+    private var pending: (() -> Unit)? = null
 
     private val _ui = MutableStateFlow(PlayerUi())
     val ui = _ui.asStateFlow()
@@ -48,10 +53,14 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     init {
         val token = SessionToken(app, ComponentName(app, PlaybackService::class.java))
         val future = MediaController.Builder(app, token).buildAsync()
+        controllerFuture = future
         future.addListener({
+            if (released) return@addListener
             controller = future.get().also { it.addListener(listener) }
             pushState()
+            pending?.let { it(); pending = null }
         }, ContextCompat.getMainExecutor(app))
+
         viewModelScope.launch {
             while (true) {
                 val c = controller
@@ -62,15 +71,19 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                             durationMs = if (c.duration > 0) c.duration else it.durationMs,
                         )
                     }
+                    delay(500)
+                } else {
+                    delay(1000)
                 }
-                delay(500)
             }
         }
     }
 
     fun playQueue(songs: List<Song>, startIndex: Int) {
-        val c = controller ?: return
+        val c = controller ?: run { pending = { playQueue(songs, startIndex) }; return }
+        if (songs.isEmpty()) return
         queue = songs
+        c.shuffleModeEnabled = false
         c.setMediaItems(songs.map { it.toMediaItem() }, startIndex.coerceIn(0, songs.lastIndex.coerceAtLeast(0)), 0L)
         c.prepare()
         c.play()
@@ -78,7 +91,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun playShuffled(songs: List<Song>) {
-        val c = controller ?: return
+        val c = controller ?: run { pending = { playShuffled(songs) }; return }
         if (songs.isEmpty()) return
         queue = songs
         c.shuffleModeEnabled = true
@@ -113,6 +126,11 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun pushState() {
         val c = controller ?: return
+        // Rebuild the display queue from the live session if we reconnected with no local queue
+        // (e.g. app swiped from recents then reopened while still playing).
+        if (queue.isEmpty() && c.mediaItemCount > 0) {
+            queue = (0 until c.mediaItemCount).map { c.getMediaItemAt(it).toDisplaySong() }
+        }
         _ui.update {
             it.copy(
                 queue = queue,
@@ -132,8 +150,11 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
-        controller?.release()
+        released = true
+        controller?.removeListener(listener)
         controller = null
+        controllerFuture?.let { MediaController.releaseFuture(it) }
+        controllerFuture = null
         super.onCleared()
     }
 }
@@ -150,3 +171,21 @@ fun Song.toMediaItem(): MediaItem = MediaItem.Builder()
             .build()
     )
     .build()
+
+/** Reconstruct a display-only Song from a MediaItem carried by the live session. */
+private fun MediaItem.toDisplaySong(): Song {
+    val m = mediaMetadata
+    return Song(
+        id = mediaId.toLongOrNull() ?: 0L,
+        title = m.title?.toString() ?: "Unknown",
+        artist = m.artist?.toString() ?: "Unknown artist",
+        album = m.albumTitle?.toString() ?: "",
+        albumId = 0L,
+        durationMs = 0L,
+        uri = localConfiguration?.uri ?: Uri.EMPTY,
+        artworkUri = m.artworkUri,
+        track = 0,
+        path = "",
+        dateAdded = 0L,
+    )
+}

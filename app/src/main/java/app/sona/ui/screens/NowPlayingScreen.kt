@@ -35,6 +35,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -83,12 +84,13 @@ fun NowPlayingScreen(
 
     var scrubbing by remember { mutableStateOf(false) }
     var scrubValue by remember { mutableFloatStateOf(0f) }
+    var scrubDur by remember { mutableLongStateOf(0L) }
     val progress = when {
         scrubbing -> scrubValue
         ui.durationMs > 0 -> (ui.positionMs.toFloat() / ui.durationMs).coerceIn(0f, 1f)
         else -> 0f
     }
-    val shownPos = if (scrubbing) (scrubValue * ui.durationMs).toLong() else ui.positionMs
+    val shownPos = if (scrubbing) (scrubValue * scrubDur).toLong() else ui.positionMs
 
     Box(Modifier.fillMaxSize().background(BgBase)) {
         AsyncImage(
@@ -131,8 +133,8 @@ fun NowPlayingScreen(
             Spacer(Modifier.height(8.dp))
             Slider(
                 value = progress,
-                onValueChange = { scrubbing = true; scrubValue = it },
-                onValueChangeFinished = { onSeek((scrubValue * ui.durationMs).toLong()); scrubbing = false },
+                onValueChange = { if (!scrubbing) { scrubbing = true; scrubDur = ui.durationMs }; scrubValue = it },
+                onValueChangeFinished = { onSeek((scrubValue * scrubDur).toLong()); scrubbing = false },
                 colors = SliderDefaults.colors(thumbColor = Accent, activeTrackColor = Accent, inactiveTrackColor = BorderSubtle),
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

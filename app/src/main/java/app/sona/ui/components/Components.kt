@@ -75,16 +75,21 @@ fun AlbumArt(uri: Uri?, seed: String, modifier: Modifier = Modifier, corner: Dp 
 /** Three animated red bars — the "now playing" indicator. */
 @Composable
 fun PlayingBars(modifier: Modifier = Modifier, playing: Boolean = true, color: Color = Accent) {
-    val t = rememberInfiniteTransition(label = "eq")
-    val h1 by t.animateFloat(0.35f, 1f, infiniteRepeatable(tween(340), RepeatMode.Reverse), label = "b1")
-    val h2 by t.animateFloat(0.35f, 1f, infiniteRepeatable(tween(220), RepeatMode.Reverse), label = "b2")
-    val h3 by t.animateFloat(0.35f, 1f, infiniteRepeatable(tween(460), RepeatMode.Reverse), label = "b3")
+    val heights: List<Float> = if (playing) {
+        val t = rememberInfiniteTransition(label = "eq")
+        val h1 by t.animateFloat(0.35f, 1f, infiniteRepeatable(tween(340), RepeatMode.Reverse), label = "b1")
+        val h2 by t.animateFloat(0.35f, 1f, infiniteRepeatable(tween(220), RepeatMode.Reverse), label = "b2")
+        val h3 by t.animateFloat(0.35f, 1f, infiniteRepeatable(tween(460), RepeatMode.Reverse), label = "b3")
+        listOf(h1, h2, h3)
+    } else {
+        listOf(0.4f, 0.4f, 0.4f)
+    }
     Row(modifier.height(16.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-        listOf(h1, h2, h3).forEach { hv ->
+        heights.forEach { hv ->
             Box(
                 Modifier
                     .width(3.dp)
-                    .fillMaxHeight(if (playing) hv else 0.4f)
+                    .fillMaxHeight(hv)
                     .clip(RoundedCornerShape(2.dp))
                     .background(color)
             )

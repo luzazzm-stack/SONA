@@ -81,7 +81,7 @@ fun SonaRoot(libVm: LibraryViewModel, playerVm: PlayerViewModel) {
         Box(Modifier.fillMaxSize()) {
             val d = detail.value
             if (d != null) {
-                val dd = detailData(d, state)
+                val dd = remember(d, state.songs) { detailData(d, state) }
                 SongCollectionScreen(
                     title = dd.title, subtitle = dd.subtitle, artworkUri = dd.art, songs = dd.songs,
                     curId = curId, isPlaying = isPlaying, favorites = state.favorites,

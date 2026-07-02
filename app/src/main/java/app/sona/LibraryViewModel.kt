@@ -30,6 +30,13 @@ data class LibraryState(
     val favoriteSongs: List<Song> get() = songs.filter { it.id in favorites }
 }
 
+private data class Built(
+    val songs: List<Song>,
+    val albums: List<Album>,
+    val artists: List<Artist>,
+    val folders: List<Folder>,
+)
+
 class LibraryViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _state = MutableStateFlow(LibraryState())
@@ -47,14 +54,12 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
         if (_state.value.loading) return
         _state.update { it.copy(loading = true) }
         viewModelScope.launch {
-            val songs = withContext(Dispatchers.IO) {
-                runCatching { MediaStoreRepository.songs(getApplication()) }.getOrDefault(emptyList())
+            val built = withContext(Dispatchers.IO) {
+                val songs = runCatching { MediaStoreRepository.songs(getApplication()) }.getOrDefault(emptyList())
+                Built(songs, MediaStoreRepository.albums(songs), MediaStoreRepository.artists(songs), MediaStoreRepository.folders(songs))
             }
-            val albums = MediaStoreRepository.albums(songs)
-            val artists = MediaStoreRepository.artists(songs)
-            val folders = MediaStoreRepository.folders(songs)
             _state.update {
-                it.copy(loaded = true, loading = false, songs = songs, albums = albums, artists = artists, folders = folders)
+                it.copy(loaded = true, loading = false, songs = built.songs, albums = built.albums, artists = built.artists, folders = built.folders)
             }
         }
     }

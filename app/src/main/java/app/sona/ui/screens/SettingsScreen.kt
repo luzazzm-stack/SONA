@@ -57,7 +57,7 @@ fun SettingsScreen(songCount: Int, onRescan: () -> Unit) {
 
         Card {
             Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                Text("SONA v0.1.2", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text("SONA v0.1.3", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.size(6.dp))
                 Text("An offline, local music player.", color = TextSecondary, fontSize = 12.sp)
                 Text("No ads. No tracking. No network.", color = TextMuted, fontSize = 11.sp)
