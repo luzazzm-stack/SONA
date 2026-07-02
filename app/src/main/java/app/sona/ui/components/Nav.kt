@@ -84,7 +84,7 @@ fun MiniPlayer(
 }
 
 @Composable
-fun BottomBar(current: SonaTab, onSelect: (SonaTab) -> Unit, modifier: Modifier = Modifier) {
+fun BottomBar(current: SonaTab, modifier: Modifier = Modifier, onSelect: (SonaTab) -> Unit) {
     Row(
         modifier
             .fillMaxWidth()
