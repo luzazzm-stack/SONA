@@ -52,7 +52,6 @@ import app.sona.core.Album
 import app.sona.core.Artist
 import app.sona.core.Folder
 import app.sona.core.Song
-import app.sona.playback.PlayerUi
 import app.sona.ui.components.AlbumArt
 import app.sona.ui.components.SongRow
 import app.sona.ui.theme.Accent
@@ -80,7 +79,8 @@ private fun sortSongs(songs: List<Song>, mode: SortMode): List<Song> = when (mod
 @Composable
 fun LibraryScreen(
     state: LibraryState,
-    playerUi: PlayerUi,
+    currentSongId: Long?,
+    isPlaying: Boolean,
     onPlaySong: (List<Song>, Int) -> Unit,
     onShuffleAll: (List<Song>) -> Unit,
     onOpenAlbum: (Album) -> Unit,
@@ -91,7 +91,7 @@ fun LibraryScreen(
     var tab by remember { mutableIntStateOf(0) }
     var sortMode by remember { mutableStateOf(SortMode.Title) }
     var sortMenu by remember { mutableStateOf(false) }
-    val curId = playerUi.current?.id
+    val curId = currentSongId
 
     val sortedSongs = remember(state.songs, sortMode) { sortSongs(state.songs, sortMode) }
     val sortedFavs = remember(state.favorites, state.songs, sortMode) { sortSongs(state.favoriteSongs, sortMode) }
@@ -162,12 +162,12 @@ fun LibraryScreen(
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (tab) {
                 0 -> if (state.loaded && sortedSongs.isEmpty()) EmptyHint("No music found on this device.")
-                    else SongList(sortedSongs, curId, playerUi.isPlaying, state.favorites, onPlaySong, onToggleFav)
+                    else SongList(sortedSongs, curId, isPlaying, state.favorites, onPlaySong, onToggleFav)
                 1 -> AlbumGrid(state.albums, onOpenAlbum)
                 2 -> ArtistList(state.artists, onOpenArtist)
                 3 -> FolderList(state.folders, onOpenFolder)
                 else -> if (sortedFavs.isEmpty()) EmptyHint("No favorites yet — tap the heart on any song.")
-                    else SongList(sortedFavs, curId, playerUi.isPlaying, state.favorites, onPlaySong, onToggleFav)
+                    else SongList(sortedFavs, curId, isPlaying, state.favorites, onPlaySong, onToggleFav)
             }
         }
     }

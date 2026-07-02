@@ -34,7 +34,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.sona.LibraryState
 import app.sona.core.Song
-import app.sona.playback.PlayerUi
 import app.sona.ui.components.SongRow
 import app.sona.ui.theme.Accent
 import app.sona.ui.theme.Surface2
@@ -44,7 +43,8 @@ import app.sona.ui.theme.TextPrimary
 @Composable
 fun SearchScreen(
     state: LibraryState,
-    playerUi: PlayerUi,
+    currentSongId: Long?,
+    isPlaying: Boolean,
     onPlaySong: (List<Song>, Int) -> Unit,
     onToggleFav: (Long) -> Unit,
 ) {
@@ -55,7 +55,7 @@ fun SearchScreen(
             it.title.contains(q, true) || it.artist.contains(q, true) || it.album.contains(q, true)
         }
     }
-    val curId = playerUi.current?.id
+    val curId = currentSongId
 
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Row(
@@ -83,7 +83,7 @@ fun SearchScreen(
         } else {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 150.dp)) {
                 itemsIndexed(results, key = { _, s -> s.id }) { i, s ->
-                    SongRow(s, s.id == curId, playerUi.isPlaying, s.id in state.favorites, { onPlaySong(results, i) }, { onToggleFav(s.id) })
+                    SongRow(s, s.id == curId, isPlaying, s.id in state.favorites, { onPlaySong(results, i) }, { onToggleFav(s.id) })
                 }
             }
         }

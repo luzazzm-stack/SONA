@@ -1,7 +1,9 @@
 package app.sona.core
 
 import android.net.Uri
+import androidx.compose.runtime.Immutable
 
+@Immutable
 data class Song(
     val id: Long,
     val title: String,
@@ -16,6 +18,7 @@ data class Song(
     val dateAdded: Long,
 )
 
+@Immutable
 data class Album(
     val id: Long,
     val title: String,
@@ -24,12 +27,14 @@ data class Album(
     val artworkUri: Uri?,
 )
 
+@Immutable
 data class Artist(
     val name: String,
     val songCount: Int,
     val albumCount: Int,
 )
 
+@Immutable
 data class Folder(
     val path: String,
     val name: String,

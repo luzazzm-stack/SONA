@@ -2,6 +2,7 @@ package app.sona.playback
 
 import android.app.Application
 import android.content.ComponentName
+import androidx.compose.runtime.Immutable
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+@Immutable
 data class PlayerUi(
     val queue: List<Song> = emptyList(),
     val index: Int = 0,
