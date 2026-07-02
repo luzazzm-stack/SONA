@@ -28,11 +28,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.material.icons.rounded.SwapVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -52,6 +57,7 @@ import app.sona.ui.components.AlbumArt
 import app.sona.ui.components.SongRow
 import app.sona.ui.theme.Accent
 import app.sona.ui.theme.Surface2
+import app.sona.ui.theme.Surface3
 import app.sona.ui.theme.TextMuted
 import app.sona.ui.theme.TextPrimary
 import app.sona.ui.theme.TextSecondary
@@ -59,26 +65,64 @@ import app.sona.ui.theme.TextSecondary
 private val TABS = listOf("Songs", "Albums", "Artists", "Folders", "Favorites")
 private val listPad = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 150.dp)
 
+private enum class SortMode(val label: String) {
+    Title("Title"), Artist("Artist"), Album("Album"), Recent("Recently added"), Duration("Duration")
+}
+
+private fun sortSongs(songs: List<Song>, mode: SortMode): List<Song> = when (mode) {
+    SortMode.Title -> songs.sortedBy { it.title.lowercase() }
+    SortMode.Artist -> songs.sortedBy { it.artist.lowercase() + it.title.lowercase() }
+    SortMode.Album -> songs.sortedWith(compareBy({ it.album.lowercase() }, { it.track }))
+    SortMode.Recent -> songs.sortedByDescending { it.dateAdded }
+    SortMode.Duration -> songs.sortedBy { it.durationMs }
+}
+
 @Composable
 fun LibraryScreen(
     state: LibraryState,
     playerUi: PlayerUi,
     onPlaySong: (List<Song>, Int) -> Unit,
+    onShuffleAll: (List<Song>) -> Unit,
     onOpenAlbum: (Album) -> Unit,
     onOpenArtist: (Artist) -> Unit,
     onOpenFolder: (Folder) -> Unit,
     onToggleFav: (Long) -> Unit,
 ) {
     var tab by remember { mutableIntStateOf(0) }
+    var sortMode by remember { mutableStateOf(SortMode.Title) }
+    var sortMenu by remember { mutableStateOf(false) }
     val curId = playerUi.current?.id
 
+    val sortedSongs = remember(state.songs, sortMode) { sortSongs(state.songs, sortMode) }
+    val sortedFavs = remember(state.favorites, state.songs, sortMode) { sortSongs(state.favoriteSongs, sortMode) }
+    val shuffleTarget = if (tab == 4) sortedFavs else sortedSongs
+
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        // Header: wordmark + shuffle-all + sort
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("SONA", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
             Spacer(Modifier.width(5.dp))
             Box(Modifier.size(6.dp).clip(CircleShape).background(Accent))
+            Spacer(Modifier.weight(1f))
+            Box(Modifier.size(44.dp).clickable { onShuffleAll(shuffleTarget) }, contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.Shuffle, "Shuffle all", tint = Accent, modifier = Modifier.size(22.dp))
+            }
+            Box {
+                Box(Modifier.size(44.dp).clickable { sortMenu = true }, contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.SwapVert, "Sort", tint = TextPrimary, modifier = Modifier.size(24.dp))
+                }
+                DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
+                    SortMode.entries.forEach { m ->
+                        DropdownMenuItem(
+                            text = { Text(m.label, color = if (m == sortMode) Accent else TextPrimary, fontWeight = if (m == sortMode) FontWeight.Bold else FontWeight.Normal) },
+                            onClick = { sortMode = m; sortMenu = false },
+                        )
+                    }
+                }
+            }
         }
 
+        // Tabs
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             TABS.forEachIndexed { i, label ->
                 val active = i == tab
@@ -95,20 +139,36 @@ fun LibraryScreen(
                 )
             }
         }
-        Spacer(Modifier.height(6.dp))
+
+        // Count + sort strip (visible without selecting anything)
+        val stripText = when (tab) {
+            0 -> "${sortedSongs.size} songs · ${sortMode.label}"
+            1 -> "${state.albums.size} albums"
+            2 -> "${state.artists.size} artists"
+            3 -> "${state.folders.size} folders"
+            else -> "${sortedFavs.size} favorites · ${sortMode.label}"
+        }
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(stripText, color = TextSecondary, fontSize = 11.sp, modifier = Modifier.weight(1f))
+            if (tab == 0 || tab == 4) {
+                Text(
+                    "Sort",
+                    color = TextMuted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clip(RoundedCornerShape(99.dp)).background(Surface3).clickable { sortMenu = true }.padding(horizontal = 10.dp, vertical = 4.dp),
+                )
+            }
+        }
 
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (tab) {
-                0 -> SongList(state.songs, curId, playerUi.isPlaying, state.favorites, onPlaySong, onToggleFav)
+                0 -> if (state.loaded && sortedSongs.isEmpty()) EmptyHint("No music found on this device.")
+                    else SongList(sortedSongs, curId, playerUi.isPlaying, state.favorites, onPlaySong, onToggleFav)
                 1 -> AlbumGrid(state.albums, onOpenAlbum)
                 2 -> ArtistList(state.artists, onOpenArtist)
                 3 -> FolderList(state.folders, onOpenFolder)
-                else -> {
-                    if (state.favoriteSongs.isEmpty()) EmptyHint("No favorites yet — tap the heart on any song.")
-                    else SongList(state.favoriteSongs, curId, playerUi.isPlaying, state.favorites, onPlaySong, onToggleFav)
-                }
+                else -> if (sortedFavs.isEmpty()) EmptyHint("No favorites yet — tap the heart on any song.")
+                    else SongList(sortedFavs, curId, playerUi.isPlaying, state.favorites, onPlaySong, onToggleFav)
             }
-            if (tab == 0 && state.loaded && state.songs.isEmpty()) EmptyHint("No music found on this device.")
         }
     }
 }

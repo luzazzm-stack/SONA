@@ -86,6 +86,7 @@ fun SonaRoot(libVm: LibraryViewModel, playerVm: PlayerViewModel) {
             } else when (tab) {
                 SonaTab.Library -> LibraryScreen(
                     state, playerUi, play,
+                    onShuffleAll = { playerVm.playShuffled(it) },
                     onOpenAlbum = { detail = Detail.AlbumD(it) },
                     onOpenArtist = { detail = Detail.ArtistD(it) },
                     onOpenFolder = { detail = Detail.FolderD(it) },

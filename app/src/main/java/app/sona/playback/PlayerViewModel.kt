@@ -75,6 +75,17 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         pushState()
     }
 
+    fun playShuffled(songs: List<Song>) {
+        val c = controller ?: return
+        if (songs.isEmpty()) return
+        queue = songs
+        c.shuffleModeEnabled = true
+        c.setMediaItems(songs.map { it.toMediaItem() }, songs.indices.random(), 0L)
+        c.prepare()
+        c.play()
+        pushState()
+    }
+
     fun togglePlay() {
         val c = controller ?: return
         if (c.isPlaying) c.pause() else c.play()
