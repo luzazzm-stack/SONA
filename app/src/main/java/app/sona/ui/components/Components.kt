@@ -44,6 +44,7 @@ import app.sona.core.asDuration
 import app.sona.ui.theme.Accent
 import app.sona.ui.theme.AccentRow
 import app.sona.ui.theme.IconMuted
+import app.sona.ui.theme.ScrimSheet
 import app.sona.ui.theme.Surface2
 import app.sona.ui.theme.Surface3
 import app.sona.ui.theme.TextMuted
@@ -119,7 +120,7 @@ fun SongRow(
         Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
             AlbumArt(song.artworkUri, song.title, Modifier.size(48.dp), 8.dp)
             if (isCurrent) {
-                Box(Modifier.matchParentSize().background(Color(0xB3000000), RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
+                Box(Modifier.matchParentSize().background(ScrimSheet, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
                     PlayingBars(playing = isPlaying)
                 }
             }
@@ -138,12 +139,17 @@ fun SongRow(
         }
         Spacer(Modifier.width(8.dp))
         Text(song.durationMs.asDuration(), color = TextMuted, fontSize = 11.sp)
-        Spacer(Modifier.width(6.dp))
-        Icon(
-            if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-            contentDescription = "favorite",
-            tint = if (isFavorite) Accent else IconMuted,
-            modifier = Modifier.size(20.dp).clip(RoundedCornerShape(50)).clickable { onToggleFav() }.padding(2.dp),
-        )
+        // 48dp touch target around the 20dp glyph — a heart mis-tap must never start playback.
+        Box(
+            Modifier.size(48.dp).clip(RoundedCornerShape(50)).clickable { onToggleFav() },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                contentDescription = "favorite",
+                tint = if (isFavorite) Accent else IconMuted,
+                modifier = Modifier.size(20.dp),
+            )
+        }
     }
 }

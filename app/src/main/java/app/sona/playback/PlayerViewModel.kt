@@ -7,8 +7,10 @@ import androidx.compose.runtime.Immutable
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import android.util.Log
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
@@ -21,6 +23,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.concurrent.Future
 
+private const val TAG = "SonaPlayer"
+private const val MAX_CONSECUTIVE_ERRORS = 3
+
 @Immutable
 data class PlayerUi(
     val queue: List<Song> = emptyList(),
@@ -31,6 +36,8 @@ data class PlayerUi(
     val shuffle: Boolean = false,
     val repeat: SonaRepeat = SonaRepeat.OFF,
     val hasCurrent: Boolean = false,
+    /** One-shot playback error for the UI to surface (e.g. toast); clear with [PlayerViewModel.clearError]. */
+    val error: String? = null,
 ) {
     val current: Song? get() = queue.getOrNull(index)
 }
@@ -42,12 +49,35 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     private var released = false
     private var queue: List<Song> = emptyList()
     private var pending: (() -> Unit)? = null
+    private var consecutiveErrors = 0
 
     private val _ui = MutableStateFlow(PlayerUi())
     val ui = _ui.asStateFlow()
 
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) = pushState()
+
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            if (playbackState == Player.STATE_READY) consecutiveErrors = 0
+        }
+
+        // The SKIPPING on error lives in PlaybackService (it survives the UI being
+        // swiped away; doing it here too would double-skip). This side only surfaces
+        // the message, using a mirrored counter driven by the same player events so
+        // its idea of "the service gave up" matches the service's.
+        override fun onPlayerError(error: PlaybackException) {
+            val c = controller ?: return
+            val title = c.currentMediaItem?.mediaMetadata?.title ?: "unknown"
+            consecutiveErrors++
+            _ui.update {
+                it.copy(
+                    error = if (consecutiveErrors < MAX_CONSECUTIVE_ERRORS && c.hasNextMediaItem())
+                        "Skipped \"$title\" — file couldn't be played"
+                    else
+                        "Playback stopped: couldn't play \"$title\""
+                )
+            }
+        }
     }
 
     init {
@@ -56,7 +86,13 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         controllerFuture = future
         future.addListener({
             if (released) return@addListener
-            controller = future.get().also { it.addListener(listener) }
+            val c = try {
+                future.get()
+            } catch (e: Exception) {
+                Log.w(TAG, "MediaController connection failed", e)
+                null // leave pending intact; controls stay inert rather than crashing
+            } ?: return@addListener
+            controller = c.also { it.addListener(listener) }
             pushState()
             pending?.let { it(); pending = null }
         }, ContextCompat.getMainExecutor(app))
@@ -82,6 +118,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     fun playQueue(songs: List<Song>, startIndex: Int) {
         val c = controller ?: run { pending = { playQueue(songs, startIndex) }; return }
         if (songs.isEmpty()) return
+        consecutiveErrors = 0 // fresh queue, fresh skip budget
         queue = songs
         c.shuffleModeEnabled = false
         c.setMediaItems(songs.map { it.toMediaItem() }, startIndex.coerceIn(0, songs.lastIndex.coerceAtLeast(0)), 0L)
@@ -93,6 +130,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     fun playShuffled(songs: List<Song>) {
         val c = controller ?: run { pending = { playShuffled(songs) }; return }
         if (songs.isEmpty()) return
+        consecutiveErrors = 0 // fresh queue, fresh skip budget
         queue = songs
         c.shuffleModeEnabled = true
         c.setMediaItems(songs.map { it.toMediaItem() }, songs.indices.random(), 0L)
@@ -123,6 +161,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             else -> Player.REPEAT_MODE_OFF
         }
     }
+
+    fun clearError() { _ui.update { it.copy(error = null) } }
 
     private fun pushState() {
         val c = controller ?: return

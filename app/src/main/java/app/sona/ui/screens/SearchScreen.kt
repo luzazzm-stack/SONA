@@ -1,6 +1,7 @@
 package app.sona.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -17,6 +18,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -24,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,7 +51,7 @@ fun SearchScreen(
     onPlaySong: (List<Song>, Int) -> Unit,
     onToggleFav: (Long) -> Unit,
 ) {
-    var q by remember { mutableStateOf("") }
+    var q by rememberSaveable { mutableStateOf("") }
     val results = remember(q, state.songs) {
         if (q.isBlank()) emptyList()
         else state.songs.filter {
@@ -73,6 +76,13 @@ fun SearchScreen(
                     textStyle = TextStyle(color = TextPrimary, fontSize = 14.sp),
                     cursorBrush = SolidColor(Accent),
                     modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            if (q.isNotEmpty()) {
+                Spacer(Modifier.width(10.dp))
+                Icon(
+                    Icons.Rounded.Close, "Clear search", tint = TextMuted,
+                    modifier = Modifier.size(20.dp).clickable { q = "" },
                 )
             }
         }

@@ -36,7 +36,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -47,12 +46,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import app.sona.LibraryState
+import app.sona.LibraryViewModel
 import app.sona.core.Album
 import app.sona.core.Artist
 import app.sona.core.Folder
 import app.sona.core.Song
+import app.sona.core.SortMode
 import app.sona.ui.components.AlbumArt
+import app.sona.ui.components.ShimmerHost
+import app.sona.ui.components.SkeletonRow
 import app.sona.ui.components.SongRow
 import app.sona.ui.theme.Accent
 import app.sona.ui.theme.Surface2
@@ -63,10 +67,6 @@ import app.sona.ui.theme.TextSecondary
 
 private val TABS = listOf("Songs", "Albums", "Artists", "Folders", "Favorites")
 private val listPad = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 150.dp)
-
-private enum class SortMode(val label: String) {
-    Title("Title"), Artist("Artist"), Album("Album"), Recent("Recently added"), Duration("Duration")
-}
 
 private fun sortSongs(songs: List<Song>, mode: SortMode): List<Song> = when (mode) {
     SortMode.Title -> songs.sortedBy { it.title.lowercase() }
@@ -88,8 +88,9 @@ fun LibraryScreen(
     onOpenFolder: (Folder) -> Unit,
     onToggleFav: (Long) -> Unit,
 ) {
-    var tab by remember { mutableIntStateOf(0) }
-    var sortMode by remember { mutableStateOf(SortMode.Title) }
+    val libVm: LibraryViewModel = viewModel() // activity-scoped: same instance MainActivity created
+    val tab = state.tab
+    val sortMode = state.sort
     var sortMenu by remember { mutableStateOf(false) }
     val curId = currentSongId
 
@@ -115,7 +116,7 @@ fun LibraryScreen(
                     SortMode.entries.forEach { m ->
                         DropdownMenuItem(
                             text = { Text(m.label, color = if (m == sortMode) Accent else TextPrimary, fontWeight = if (m == sortMode) FontWeight.Bold else FontWeight.Normal) },
-                            onClick = { sortMode = m; sortMenu = false },
+                            onClick = { libVm.setSort(m); sortMenu = false },
                         )
                     }
                 }
@@ -134,7 +135,7 @@ fun LibraryScreen(
                     modifier = Modifier
                         .clip(RoundedCornerShape(99.dp))
                         .background(if (active) Accent.copy(alpha = 0.14f) else Surface2)
-                        .clickable { tab = i }
+                        .clickable { libVm.setTab(i) }
                         .padding(horizontal = 14.dp, vertical = 8.dp),
                 )
             }
@@ -160,12 +161,16 @@ fun LibraryScreen(
         }
 
         Box(Modifier.weight(1f).fillMaxWidth()) {
-            when (tab) {
-                0 -> if (state.loaded && sortedSongs.isEmpty()) EmptyHint("No music found on this device.")
+            if (!state.loaded) {
+                ShimmerHost {
+                    Column(Modifier.fillMaxSize().padding(listPad)) { repeat(8) { SkeletonRow() } }
+                }
+            } else when (tab) {
+                0 -> if (sortedSongs.isEmpty()) EmptyHint("No music found on this device.")
                     else SongList(sortedSongs, curId, isPlaying, state.favorites, onPlaySong, onToggleFav)
-                1 -> AlbumGrid(state.albums, onOpenAlbum)
-                2 -> ArtistList(state.artists, onOpenArtist)
-                3 -> FolderList(state.folders, onOpenFolder)
+                1 -> if (state.albums.isEmpty()) EmptyHint("No albums found") else AlbumGrid(state.albums, onOpenAlbum)
+                2 -> if (state.artists.isEmpty()) EmptyHint("No artists found") else ArtistList(state.artists, onOpenArtist)
+                3 -> if (state.folders.isEmpty()) EmptyHint("No folders found") else FolderList(state.folders, onOpenFolder)
                 else -> if (sortedFavs.isEmpty()) EmptyHint("No favorites yet — tap the heart on any song.")
                     else SongList(sortedFavs, curId, isPlaying, state.favorites, onPlaySong, onToggleFav)
             }

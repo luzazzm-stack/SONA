@@ -24,6 +24,11 @@ import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -56,7 +61,13 @@ fun MiniPlayer(
     onNext: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val song = ui.current ?: return
+    // Remember the last non-null song so the bar can still draw itself while its exit animation
+    // runs after playback is cleared (ui.current -> null). Contract unchanged: renders nothing if
+    // no song was ever set. Display always prefers the live ui.current when present.
+    val current = ui.current
+    var lastSong by remember { mutableStateOf(current) }
+    SideEffect { if (current != null && current != lastSong) lastSong = current }
+    val song = current ?: lastSong ?: return
     val progress = if (ui.durationMs > 0) (ui.positionMs.toFloat() / ui.durationMs).coerceIn(0f, 1f) else 0f
     Column(modifier.fillMaxWidth().background(Surface2)) {
         // red progress hairline

@@ -11,8 +11,8 @@ android {
         applicationId = "app.sona"
         minSdk = 26
         targetSdk = 33
-        versionCode = 4
-        versionName = "0.1.3"
+        versionCode = 5
+        versionName = "0.2.0"
         base.archivesName.set("SONA-v$versionName")
         vectorDrawables.useSupportLibrary = true
     }
