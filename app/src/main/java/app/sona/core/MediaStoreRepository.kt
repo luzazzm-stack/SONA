@@ -8,8 +8,6 @@ import android.provider.MediaStore
 /** Scans on-device audio via MediaStore and groups it into albums / artists / folders. */
 object MediaStoreRepository {
 
-    private val ALBUM_ART: Uri = Uri.parse("content://media/external/audio/albumart")
-
     fun songs(context: Context): List<Song> {
         val out = ArrayList<Song>()
         val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
@@ -38,6 +36,7 @@ object MediaStoreRepository {
             val addedI = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
             while (c.moveToNext()) {
                 val id = c.getLong(idI)
+                val songUri = ContentUris.withAppendedId(collection, id)
                 val albumId = c.getLong(albumIdI)
                 val dur = c.getLong(durI)
                 if (dur in 1..4999) continue // skip very short clips / notification sounds
@@ -49,8 +48,11 @@ object MediaStoreRepository {
                         album = c.getString(albumI) ?: "Unknown album",
                         albumId = albumId,
                         durationMs = dur,
-                        uri = ContentUris.withAppendedId(collection, id),
-                        artworkUri = ContentUris.withAppendedId(ALBUM_ART, albumId),
+                        uri = songUri,
+                        // The SONG's own cover (.../audio/media/<id>/albumart), not the album's: untagged files
+                        // (YouTube downloads) share one "Download" album per folder, and that album has no art —
+                        // every one of them showed a blank monogram although the files carry embedded covers.
+                        artworkUri = Uri.withAppendedPath(songUri, "albumart"),
                         track = c.getInt(trackI),
                         path = c.getString(dataI) ?: "",
                         dateAdded = c.getLong(addedI),
